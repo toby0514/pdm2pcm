@@ -150,22 +150,29 @@ void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
   {
     unsigned short kmin, kmax, k;
     
-    Result[n] = 0;
-    
-    kmin = (n >= KernelLen - 1) ? n - (KernelLen - 1) : 0;
-    kmax = (n < SignalLen - 1) ? n : SignalLen - 1;
-    
+    Result[n] = 0;                                        
+                                                            //     254 253 ... 128 127 126 125 ... 1 0// 
+    kmin = (n >= KernelLen - 1) ? n - (KernelLen - 1) : 0;  //kmin 127 126       1   0   0   0 ... 0 0//
+    kmax = (n < SignalLen - 1) ? n : SignalLen - 1;         //kmax 127 127     127 127 126 125 ... 1 0//
+     
     for (k = kmin; k <= kmax; k++) {
       Result[n] += Signal[k] * Kernel[n - k];
     }
   }
 }
 
-void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
+//init
+void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 {
+  Param->OldOut = Param->OldIn = Param->OldZ = 0;
+  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t) (Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * 3.14159))) : 0);
+  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t) (Param->Fs * 256 / (2 * 3.14159 * Param->HP_HZ + Param->Fs)) : 0);
+}
+
+void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
+{  
   uint16_t i, j;
   int64_t sum = 0;
-
   uint8_t decimation = Param->Decimation;
 
   for (i = 0; i < SINCN; i++) {
@@ -176,15 +183,12 @@ void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
     sinc1[i] = 1;
   }
 
-  Param->OldOut = Param->OldIn = Param->OldZ = 0;
-  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t) (Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * 3.14159))) : 0);
-  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t) (Param->Fs * 256 / (2 * 3.14159 * Param->HP_HZ + Param->Fs)) : 0);
+  Param->FilterLen = decimation * SINCN;    
 
-  Param->FilterLen = decimation * SINCN;       
   sinc[0] = 0;
   sinc[decimation * SINCN - 1] = 0;      
   convolve(sinc1, decimation, sinc1, decimation, sinc2);
-  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);     
+  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);    // &sinc[1] meaning ? 
   for(j = 0; j < SINCN; j++) {
     for (i = 0; i < decimation; i++) {
       coef[j][i] = sinc[j * decimation + i];
@@ -216,12 +220,19 @@ void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
 #endif
 }
 
+void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
+{
+
+  Bandpass_Filter_Init(Param);
+  CIC_Filter_Init(Param);
+}
+
 void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
 {
   uint8_t i, data_out_index;
   uint8_t channels = Param->In_MicChannels;
-  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels);
-  int64_t Z, Z0, Z1, Z2;
+  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels); //why (DECIMATION_MAX >> 4) ? 
+  int64_t Z, Z0, Z1, Z2; 
   int64_t OldOut, OldIn, OldZ;
 
   OldOut = Param->OldOut;
@@ -264,23 +275,12 @@ void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFi
   Param->OldZ = OldZ;
 }
 
-void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
+
+int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j)
 {
-  uint8_t i, data_out_index;
-  uint8_t channels = Param->In_MicChannels;
-  uint8_t data_inc = ((DECIMATION_MAX >> 3) * channels);
-  int64_t Z, Z0, Z1, Z2;
-  int64_t OldOut, OldIn, OldZ;
+  int64_t Z0, Z1, Z2;
 
-  OldOut = Param->OldOut;
-  OldIn = Param->OldIn;
-  OldZ = Param->OldZ;
-
-#ifdef USE_LUT
-  uint8_t j = channels - 1;
-#endif
-
-  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels) {
+  // LUT
 #ifdef USE_LUT
     Z0 = filter_tables_128[j](data, 0);
     Z1 = filter_tables_128[j](data, 1);
@@ -290,23 +290,54 @@ void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMF
     Z1 = filter_table(data, 1, Param);
     Z2 = filter_table(data, 2, Param);
 #endif
-
     Z = Param->Coef[1] + Z2 - sub_const;
     Param->Coef[1] = Param->Coef[0] + Z1;
     Param->Coef[0] = Z0;
 
-    OldOut = (Param->HP_ALFA * (OldOut + Z - OldIn)) >> 8;
-    OldIn = Z;
+    return Z;
+}
+
+int Bandpass_Filter(TPDMFilter_InitStruct *Param, int64_t Zin, int64_t OldZ, int64_t OldIn, int64_t OldOut)
+{
+    OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8;
+    OldIn = Zin;
     OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8;
+    return OldZ;
+}
 
-    Z = OldZ * volume;
-    Z = RoundDiv(Z, div_const);
-    Z = SaturaLH(Z, -32700, 32700);
+int Normalization(int64_t Zin, int64_t New_OldZ, uint16_t volume)
+{
+    Zin = New_OldZ * volume;
+    Zin = RoundDiv(Zin, div_const);
+    Zin = SaturaLH(Zin, -32700, 32700);
 
-    dataOut[data_out_index] = Z;
+    return Zin;
+}
+
+void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
+{
+  uint8_t i,data_out_index;
+  int64_t Z,Zin,OldZ,OldIn,OldOut,New_OldZ;
+  uint8_t channels = Param->In_MicChannels;
+  uint8_t data_inc = ((DECIMATION_MAX >> 3) * channels); //why (DECIMATION_MAX >> 3) ?  16 bits
+
+  OldOut = Param->OldOut;
+  OldIn = Param->OldIn;
+  OldZ = Param->OldZ;
+
+  #ifdef USE_LUT
+  uint8_t j = channels - 1;
+  #endif
+
+  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels) 
+  {
+    Zin = CIC_Filter(data,Param,Z,j);
+    New_OldZ = Bandpass_Filter(Param,Zin,OldZ,OldIn,OldOut);
+    dataOut[data_out_index] = Normalization(Zin,New_OldZ,volume);
+
     data += data_inc;
   }
-
+  //Init the Oldout, Oldin, OldZ
   Param->OldOut = OldOut;
   Param->OldIn = OldIn;
   Param->OldZ = OldZ;
