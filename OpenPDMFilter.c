@@ -33,7 +33,7 @@
 
 
 /* Variables -----------------------------------------------------------------*/
-
+int AddCount=0, MulCount=0, DivCount=0,shiftCount=0;
 uint32_t div_const = 0;
 int64_t sub_const = 0;
 uint32_t sinc[DECIMATION_MAX * SINCN];
@@ -91,6 +91,7 @@ int32_t filter_table_mono_128(uint8_t *data, uint8_t sincn)
     lut[data[13]][13][sincn] +
     lut[data[14]][14][sincn] +
     lut[data[15]][15][sincn];
+    AddCount += 15;
 }
 int32_t filter_table_stereo_128(uint8_t *data, uint8_t sincn)
 {
@@ -157,6 +158,8 @@ void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
      
     for (k = kmin; k <= kmax; k++) {
       Result[n] += Signal[k] * Kernel[n - k];
+      MulCount += 1;
+      AddCount += 1;
     }
   }
 }
@@ -165,8 +168,14 @@ void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
 void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 {
   Param->OldOut = Param->OldIn = Param->OldZ = 0;
-  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t) (Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * 3.14159))) : 0);
-  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t) (Param->Fs * 256 / (2 * 3.14159 * Param->HP_HZ + Param->Fs)) : 0);
+  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t) (Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * 3.14159))) : 0); // LPF濾波係數
+  MulCount += 2;
+  AddCount += 1;
+  DivCount += 2;
+  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t) (Param->Fs * 256 / (2 * 3.14159 * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
+  MulCount += 3;
+  AddCount += 1;
+  DivCount += 1;
 }
 
 void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
@@ -188,26 +197,32 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
   sinc[0] = 0;
   sinc[decimation * SINCN - 1] = 0;      
   convolve(sinc1, decimation, sinc1, decimation, sinc2);
-  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);    // &sinc[1] meaning ? 
+  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);  
   for(j = 0; j < SINCN; j++) {
     for (i = 0; i < decimation; i++) {
       coef[j][i] = sinc[j * decimation + i];
       sum += sinc[j * decimation + i];
+      AddCount += 1;
     }
   }
 
   sub_const = sum >> 1;
+  shiftCount += 1;
   div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
+  DivCount += 2;
+  MulCount += 1;
   div_const = (div_const == 0 ? 1 : div_const);
 
 #ifdef USE_LUT
   /* Look-Up Table. */
   uint16_t c, d, s;
-  for (s = 0; s < SINCN; s++)
+  for (s = 0; s < SINCN; s++) 
   {
     uint32_t *coef_p = &coef[s][0];
-    for (c = 0; c < 256; c++)
-      for (d = 0; d < decimation / 8; d++)
+    for (c = 0; c < 256; c++) // 2^8 = 256 (8-bit PDM data)
+    {
+      for (d = 0; d < decimation / 8; d++) 
+      {
         lut[c][d][s] = ((c >> 7)       ) * coef_p[d * 8    ] +
                        ((c >> 6) & 0x01) * coef_p[d * 8 + 1] +
                        ((c >> 5) & 0x01) * coef_p[d * 8 + 2] +
@@ -215,14 +230,17 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
                        ((c >> 3) & 0x01) * coef_p[d * 8 + 4] +
                        ((c >> 2) & 0x01) * coef_p[d * 8 + 5] +
                        ((c >> 1) & 0x01) * coef_p[d * 8 + 6] +
-                       ((c     ) & 0x01) * coef_p[d * 8 + 7];
+                       ((c     ) & 0x01) * coef_p[d * 8 + 7];  
+                      MulCount += 8;
+                      AddCount += 7;
+      }
+    }
   }
 #endif
 }
 
 void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
 {
-
   Bandpass_Filter_Init(Param);
   CIC_Filter_Init(Param);
 }
@@ -231,7 +249,7 @@ void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFi
 {
   uint8_t i, data_out_index;
   uint8_t channels = Param->In_MicChannels;
-  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels); //why (DECIMATION_MAX >> 4) ? 
+  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels); 
   int64_t Z, Z0, Z1, Z2; 
   int64_t OldOut, OldIn, OldZ;
 
@@ -290,18 +308,26 @@ int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j
     Z1 = filter_table(data, 1, Param);
     Z2 = filter_table(data, 2, Param);
 #endif
+//  comb filter implement
     Z = Param->Coef[1] + Z2 - sub_const;
+    AddCount += 2;
     Param->Coef[1] = Param->Coef[0] + Z1;
+    AddCount += 1;
     Param->Coef[0] = Z0;
-
     return Z;
 }
 
 int Bandpass_Filter(TPDMFilter_InitStruct *Param, int64_t Zin, int64_t OldZ, int64_t OldIn, int64_t OldOut)
 {
-    OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8;
+    OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8; // 一階RC LPF模型 
+    AddCount += 2;
+    MulCount += 1;
+    shiftCount += 1;
     OldIn = Zin;
-    OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8;
+    OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8; // 一階RC HPF模型
+    AddCount += 1;
+    MulCount += 2;
+    shiftCount += 1;
     return OldZ;
 }
 
@@ -319,7 +345,7 @@ void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMF
   uint8_t i,data_out_index;
   int64_t Z,Zin,OldZ,OldIn,OldOut,New_OldZ;
   uint8_t channels = Param->In_MicChannels;
-  uint8_t data_inc = ((DECIMATION_MAX >> 3) * channels); //why (DECIMATION_MAX >> 3) ?  16 bits
+  uint8_t data_inc = ((DECIMATION_MAX >> 3) * channels); 
 
   OldOut = Param->OldOut;
   OldIn = Param->OldIn;
@@ -329,7 +355,7 @@ void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMF
   uint8_t j = channels - 1;
   #endif
 
-  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels) 
+  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels)
   {
     Zin = CIC_Filter(data,Param,Z,j);
     New_OldZ = Bandpass_Filter(Param,Zin,OldZ,OldIn,OldOut);
@@ -341,4 +367,12 @@ void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMF
   Param->OldOut = OldOut;
   Param->OldIn = OldIn;
   Param->OldZ = OldZ;
+}
+
+void Operation_Count()
+{
+  printf( "AddCount = %d times\n", AddCount); 
+	printf( "MulCount = %d times\n", MulCount);
+	printf( "DivCount = %d times\n", DivCount);
+	printf( "shiftCount = %d times\n", shiftCount);
 }
