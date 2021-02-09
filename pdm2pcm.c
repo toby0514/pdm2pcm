@@ -22,6 +22,7 @@ int main(int argc, char** argv)
 	
 	int opt, ret, dataCount; // operation, readtxt's data
 	int finished = 0;
+	int Count=0;
 	unsigned int pdmSamplingF, decimationF, pcmSamplingF, pdmBufLen, pcmBufLen; // pdm取樣頻率, Decimation(抽取率), pcm取樣頻率, pdmBuf大小(bit),  pcmBuf大小(bit)
 	uint8_t* pdmBuf; // pdmBuf(byte)
 	int16_t* pcmBuf; // pcmBuf(-32768 ~ 32767)
@@ -92,6 +93,7 @@ int main(int argc, char** argv)
 	filter.In_MicChannels = 1; 
 	filter.Out_MicChannels = 1;
 	filter.Decimation = decimationF;
+	filter.MaxVolume = 5;
 	Open_PDM_Filter_Init(&filter);
 
 	/* Operation */
@@ -122,6 +124,7 @@ int main(int argc, char** argv)
 
 			case 128 : 
 			Open_PDM_Filter_128(pdmBuf, pcmBuf, 1, &filter);
+			Count +=1;
 			break;
 		}
 
@@ -142,6 +145,7 @@ int main(int argc, char** argv)
 	finish = clock(); 
 	duration = (double)(finish - start) / CLOCKS_PER_SEC;   
     printf( "%f seconds\n", duration); 
-	Operation_Count();
+	// Operation_Count();
+	fprintf(stderr,"Count = %d times\n",Count);
 	return 0;
 }
