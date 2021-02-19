@@ -34,7 +34,7 @@
 
 /* Variables -----------------------------------------------------------------*/
 
-uint32_t div_const = 0;
+double div_const = 0;
 int64_t sub_const = 0;
 uint32_t sinc[DECIMATION_MAX * SINCN];
 uint32_t sinc1[DECIMATION_MAX];
@@ -197,8 +197,9 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
   }
 
   sub_const = sum >> 1;
-  div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
-  div_const = (div_const == 0 ? 1 : div_const);
+  // div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
+  div_const =  (double)(32768 * FILTER_GAIN) / (sub_const * Param->MaxVolume);  //改倒數
+  // div_const = (div_const == 0 ? 1 : div_const);
 
 #ifdef USE_LUT
   /* Look-Up Table. */

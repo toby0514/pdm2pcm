@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 	uint8_t* pdmBuf;
 	int16_t* pcmBuf;
 	TPDMFilter_InitStruct filter;
-
+// fprintf(stderr,"pid: %d\n", getpid());
 	/* Get user options */
 	pdmSamplingF = decimationF = 0;
 	while((opt = getopt (argc, argv, "hf:d:")) != -1){
@@ -82,6 +82,7 @@ int main(int argc, char** argv)
 	}
 	
 	/* Initialize Open PDM library */
+	filter.MaxVolume = 1;
 	filter.Fs = pcmSamplingF;
 	filter.nSamples = pcmBufLen;
 	filter.LP_HZ = pcmSamplingF/2;
