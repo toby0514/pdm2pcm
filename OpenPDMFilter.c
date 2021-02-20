@@ -35,14 +35,8 @@
 #include <errno.h>
 
 /* Variables -----------------------------------------------------------------*/
-<<<<<<< HEAD
 int AddCount=0, MulCount=0, DivCount=0,shiftCount=0;
 int ConvolveCountAdd=0,ConvolveCountMul=0,Bandpass_Filter_Init_LP_Mul=0,Bandpass_Filter_Init_LP_Add=0,Bandpass_Filter_Init_LP_Div=0,Bandpass_Filter_Init_HP_Mul=0,Bandpass_Filter_Init_HP_Add=0,Bandpass_Filter_Init_HP_Div=0,CIC_Filter_Init_Add=0,CIC_Filter_Init_Mul=0,CIC_Filter_Init_Div=0,CIC_Filter_Init_Shift=0,CIC_Filter_Add=0,Bandpass_Filter_HP_Add=0,Bandpass_Filter_HP_Mul=0,Bandpass_Filter_HP_Shift=0,Bandpass_Filter_LP_Add=0,Bandpass_Filter_LP_Mul=0,Bandpass_Filter_LP_Shift=0,Post_processing_Div=0,Post_processing_Add=0,Post_processing_Mul=0,Open_PDM_Filter_128_Add=0;
-uint32_t div_const = 0;
-=======
-
-double div_const = 0;
->>>>>>> div_constant
 double div_const = 0;
 int64_t sub_const = 0;
 uint32_t sinc[DECIMATION_MAX * SINCN];
@@ -219,18 +213,9 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
   // div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
   div_const =  (double)(32768 * FILTER_GAIN) / (sub_const * Param->MaxVolume);  //改倒數
   // div_const = (div_const == 0 ? 1 : div_const);
-<<<<<<< HEAD
   CIC_Filter_Init_Shift += 1;
-  div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
-  fprintf(stderr,"%ld * %d / 32768 / %d = %d\n",sub_const,Param->MaxVolume,FILTER_GAIN,div_const);
-  CIC_Filter_Init_Div += 2;
-  CIC_Filter_Init_Mul += 1;
-  div_const = (div_const == 0 ? 1 : div_const);
-=======
-  // div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
-  div_const =  (double)(32768 * FILTER_GAIN) / (sub_const * Param->MaxVolume);  //改倒數
-  // div_const = (div_const == 0 ? 1 : div_const);
->>>>>>> div_constant
+  CIC_Filter_Init_Div += 1;
+  CIC_Filter_Init_Mul += 2;
 
 #ifdef USE_LUT
   /* Look-Up Table. */
