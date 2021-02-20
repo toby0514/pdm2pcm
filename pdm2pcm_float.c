@@ -154,38 +154,12 @@ void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
 {  
   uint16_t i;
-  //int64_t sum = 2097152;
   uint8_t decimation = Param->Decimation;
-  //int a,b,c,j,k,l;
 
   for (i = 0; i < SINCN; i++) {
     Param->Coef[i] = 0;
     Param->bit[i] = 0;
   }
-
-  /*for (a= 0; a < 256 ; a++)
-  {
-    for (b = 0;  b < decimation / 8 ; b++)
-    {
-      for (c = 0; c < SINCN ; c++)
-      {
-        sinc_coef[a][b][c] = sinc_coef_value[a*16*3 + b*3 + c];
-        fprintf(stderr,"sinc_coef[%d][%d][%d] = %d\n",a,b,c,sinc_coef[a][b][c]);
-      }
-    }
-  }
-  */
-  /*for (c= 0; c < SINCN ; c++)
-  {
-    for (a= 0; a < 256 ; a++)
-    {
-      for (b = 0;  b < decimation / 8 ; b++)
-      {
-        sinc_coef[a][b][c] = sinc_coef_value[a*16*3 + b*3 + c];
-        fprintf(stderr,"sinc_coef[%d][%d][%d] = %d\n",a,b,c,sinc_coef[a][b][c]);
-      }
-    }
-  }*/
 
   Param->FilterLen = decimation * SINCN;    
 
