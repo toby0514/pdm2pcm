@@ -171,6 +171,18 @@ void convolve(uint32_t Signal[/* SignalLen */], unsigned short SignalLen,
 void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 {
   Param->OldOut = Param->OldIn = Param->OldZ = 0;
+  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t) (Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * 3.14159))) : 0); // LPF濾波係數
+  Bandpass_Filter_Init_LP_Mul += 2;
+  Bandpass_Filter_Init_LP_Add += 1;
+  Bandpass_Filter_Init_LP_Div += 2;
+  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t) (Param->Fs * 256 / (2 * 3.14159 * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
+  Bandpass_Filter_Init_HP_Mul += 3;
+  Bandpass_Filter_Init_HP_Add += 1;
+  Bandpass_Filter_Init_HP_Div += 1;
+}
+
+void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
+{  
   uint16_t i, j;
   int64_t sum = 0;
   uint8_t decimation = Param->Decimation;
@@ -188,7 +200,7 @@ void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
   sinc[0] = 0;
   sinc[decimation * SINCN - 1] = 0;      
   convolve(sinc1, decimation, sinc1, decimation, sinc2);
-  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);     
+  convolve(sinc2, decimation * 2 - 1, sinc1, decimation, &sinc[1]);  
   for(j = 0; j < SINCN; j++) {
     for (i = 0; i < decimation; i++) {
       coef[j][i] = sinc[j * decimation + i];
@@ -200,6 +212,7 @@ void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
   sub_const = sum >> 1;
   CIC_Filter_Init_Shift += 1;
   div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
+  fprintf(stderr,"%ld * %d / 32768 / %d = %d\n",sub_const,Param->MaxVolume,FILTER_GAIN,div_const);
   CIC_Filter_Init_Div += 2;
   CIC_Filter_Init_Mul += 1;
   div_const = (div_const == 0 ? 1 : div_const);
@@ -230,12 +243,18 @@ void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 #endif
 }
 
+void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
+{
+  Bandpass_Filter_Init(Param);
+  CIC_Filter_Init(Param);
+}
+
 void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
 {
   uint8_t i, data_out_index;
   uint8_t channels = Param->In_MicChannels;
-  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels);
-  int64_t Z, Z0, Z1, Z2;
+  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels); 
+  int64_t Z, Z0, Z1, Z2; 
   int64_t OldOut, OldIn, OldZ;
 
   OldOut = Param->OldOut;
@@ -264,7 +283,7 @@ void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFi
     OldOut = (Param->HP_ALFA * (OldOut + Z - OldIn)) >> 8;
     OldIn = Z;
     OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8;
-
+	
     Z = OldZ * volume;
     Z = RoundDiv(Z, div_const);
     Z = SaturaLH(Z, -32700, 32700);
@@ -293,7 +312,7 @@ int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j
     Z1 = filter_table(data, 1, Param);
     Z2 = filter_table(data, 2, Param);
 #endif
-
+//  comb filter implement
     Z = Param->Coef[1] + Z2 - sub_const;
     CIC_Filter_Add += 2;
     Param->Coef[1] = Param->Coef[0] + Z1;
@@ -302,15 +321,56 @@ int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j
     return Z;
 }
 
-    OldOut = (Param->HP_ALFA * (OldOut + Z - OldIn)) >> 8;
-    OldIn = Z;
-    OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8;
+int Bandpass_Filter(TPDMFilter_InitStruct *Param, int64_t Zin, int64_t OldZ, int64_t OldIn, int64_t OldOut)
+{
+    OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8; // 一階RC LPF模型 
+    Bandpass_Filter_HP_Add += 2;
+    Bandpass_Filter_HP_Mul += 1;
+    Bandpass_Filter_HP_Shift += 1;
+    OldIn = Zin;
+    OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8; // 一階RC HPF模型
+    Bandpass_Filter_LP_Add += 1;
+    Bandpass_Filter_LP_Mul += 2;
+    Bandpass_Filter_LP_Shift += 1;
+    return OldZ;
+}
 
-    Z = OldZ * volume;
-    Z = RoundDiv(Z, div_const);
-    Z = SaturaLH(Z, -32700, 32700);
+int Post_processing(int64_t Zin, int64_t New_OldZ, uint16_t volume)
+{
+    Zin = New_OldZ * volume;
+	//fprintf(stderr,"%ld\n",Zin);
+    Post_processing_Mul += 1;
+	//fprintf(stderr,"div_const = %d\n",div_const);
+    Zin = RoundDiv(Zin, div_const);
+	//fprintf(stderr,"%ld\n",Zin);
+    Post_processing_Add += 1;
+    Post_processing_Div += 2;
+    Zin = SaturaLH(Zin, -32700, 32700);
+	//fprintf(stderr,"%ld\n",Zin);
+    return Zin;
+}
 
-    dataOut[data_out_index] = Z;
+void Open_PDM_Filter_128(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
+{
+  uint8_t i,data_out_index;
+  int64_t Z,Zin,OldZ,OldIn,OldOut,New_OldZ;
+  uint8_t channels = Param->In_MicChannels;
+  uint8_t data_inc = ((DECIMATION_MAX >> 3) * channels); 
+
+  OldOut = Param->OldOut;
+  OldIn = Param->OldIn;
+  OldZ = Param->OldZ;
+
+  #ifdef USE_LUT
+  uint8_t j = channels - 1;
+  #endif
+
+  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels)
+  {
+    Zin = CIC_Filter(data,Param,Z,j);
+    New_OldZ = Bandpass_Filter(Param,Zin,OldZ,OldIn,OldOut);
+    dataOut[data_out_index] = Post_processing(Zin,New_OldZ,volume);
+
     data += data_inc;
     Open_PDM_Filter_128_Add += 1;
   }
@@ -318,4 +378,35 @@ int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j
   Param->OldOut = OldOut;
   Param->OldIn = OldIn;
   Param->OldZ = OldZ;
+}
+
+void Operation_Count()
+{
+  fprintf(stderr,"ConvolveCountAdd = %d times\n",ConvolveCountAdd);
+  fprintf(stderr,"ConvolveCountMul = %d times\n",ConvolveCountMul);
+  fprintf(stderr,"Bandpass_Filter_Init_LP_Add = %d times\n",Bandpass_Filter_Init_LP_Add);
+  fprintf(stderr,"Bandpass_Filter_Init_LP_Mul = %d times\n",Bandpass_Filter_Init_LP_Mul);
+  fprintf(stderr,"Bandpass_Filter_Init_LP_Div = %d times\n",Bandpass_Filter_Init_LP_Div);
+  fprintf(stderr,"Bandpass_Filter_Init_HP_Add = %d times\n",Bandpass_Filter_Init_HP_Add);
+  fprintf(stderr,"Bandpass_Filter_Init_HP_Mul = %d times\n",Bandpass_Filter_Init_HP_Mul);
+  fprintf(stderr,"Bandpass_Filter_Init_HP_Div = %d times\n",Bandpass_Filter_Init_HP_Div);
+  fprintf(stderr,"CIC_Filter_Init_Add = %d times\n",CIC_Filter_Init_Add);
+  fprintf(stderr,"CIC_Filter_Init_Mul = %d times\n",CIC_Filter_Init_Mul);
+  fprintf(stderr,"CIC_Filter_Init_Div = %d times\n",CIC_Filter_Init_Div);
+  fprintf(stderr,"CIC_Filter_Init_Shift = %d times\n",CIC_Filter_Init_Shift);
+  fprintf(stderr,"CIC_Filter_Add = %d times\n",CIC_Filter_Add);
+  fprintf(stderr,"Bandpass_Filter_HP_Add = %d times\n",Bandpass_Filter_HP_Add);
+  fprintf(stderr,"Bandpass_Filter_HP_Mul = %d times\n",Bandpass_Filter_HP_Mul);
+  fprintf(stderr,"Bandpass_Filter_HP_Shift = %d times\n",Bandpass_Filter_HP_Shift);
+  fprintf(stderr,"Bandpass_Filter_LP_Add = %d times\n",Bandpass_Filter_LP_Add);
+  fprintf(stderr,"Bandpass_Filter_LP_Mul = %d times\n",Bandpass_Filter_LP_Mul);
+  fprintf(stderr,"Bandpass_Filter_LP_Shift = %d times\n",Bandpass_Filter_LP_Shift);
+  fprintf(stderr,"Post_processing_Add = %d times\n",Post_processing_Add);
+  fprintf(stderr,"Post_processing_Mul = %d times\n",Post_processing_Mul);
+  fprintf(stderr,"Post_processing_Div = %d times\n",Post_processing_Div);
+  fprintf(stderr,"Open_PDM_Filter_128_Add = %d times\n",Open_PDM_Filter_128_Add);
+  fprintf(stderr,"AddCount = %d times\n", ConvolveCountAdd+Bandpass_Filter_Init_LP_Add+Bandpass_Filter_Init_HP_Add+CIC_Filter_Init_Add+CIC_Filter_Add+Bandpass_Filter_HP_Add+Bandpass_Filter_LP_Add+Post_processing_Add+Open_PDM_Filter_128_Add); 
+	fprintf(stderr,"MulCount = %d times\n", ConvolveCountMul+Bandpass_Filter_Init_LP_Mul+Bandpass_Filter_Init_HP_Mul+CIC_Filter_Init_Mul+Bandpass_Filter_HP_Mul+Bandpass_Filter_LP_Mul+Post_processing_Mul);
+	fprintf(stderr,"DivCount = %d times\n", Bandpass_Filter_Init_LP_Div+Bandpass_Filter_Init_HP_Div+CIC_Filter_Init_Div+Post_processing_Div);
+	fprintf(stderr,"shiftCount = %d times\n", CIC_Filter_Init_Shift+Bandpass_Filter_HP_Shift+Bandpass_Filter_LP_Shift);
 }

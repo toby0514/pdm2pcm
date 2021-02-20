@@ -18,17 +18,14 @@
 #include <time.h>
 
 int main(int argc, char** argv)
-{
-	
+{	
+	int Count=0;
 	int opt, ret, dataCount; // operation, readtxt's data
 	int finished = 0;
-	int Count=0;
 	unsigned int pdmSamplingF, decimationF, pcmSamplingF, pdmBufLen, pcmBufLen; // pdm取樣頻率, Decimation(抽取率), pcm取樣頻率, pdmBuf大小(bit),  pcmBuf大小(bit)
 	uint8_t* pdmBuf; // pdmBuf(byte)
 	int16_t* pcmBuf; // pcmBuf(-32768 ~ 32767)
 	TPDMFilter_InitStruct filter; // Open_PDM_filter 結構(可看.h file)
-	clock_t start,finish;
-	double  duration;
 	/* Get user options */
 	pdmSamplingF = decimationF = 0;
 	while((opt = getopt (argc, argv, "hf:d:")) != -1){
@@ -67,7 +64,6 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Must specify both PDM sampling frequency and decimation factor\n");
 		exit(-EINVAL);
 	}
-	start = clock(); 
 	pcmSamplingF = pdmSamplingF/decimationF; // PCM 取樣頻率 = PDM 取樣頻率 / Decimation , ex : 16000 = 1024000 / 128
 
 	/* Allocate buffers to contain 1ms worth of data */
@@ -111,7 +107,6 @@ int main(int argc, char** argv)
 				fprintf(stderr, "Decoding complete!\n");
 				finished = 1;
 			}
-
 			dataCount += ret;
 		}
 
@@ -122,14 +117,11 @@ int main(int argc, char** argv)
 			Open_PDM_Filter_64(pdmBuf, pcmBuf, 1, &filter);
 			break;
 
-			case 128 : 
+			case 128 :
 			Open_PDM_Filter_128(pdmBuf, pcmBuf, 1, &filter);
-			Count +=1;
+			Count++;
 			break;
 		}
-
-		
-
 		/* Emit PCM decoded data to stdout */
 		dataCount = 0;
 		while(dataCount < sizeof(int16_t)*pcmBufLen){
@@ -142,10 +134,7 @@ int main(int argc, char** argv)
 			dataCount += ret;
 		}
 	}
-	finish = clock(); 
-	duration = (double)(finish - start) / CLOCKS_PER_SEC;   
-    printf( "%f seconds\n", duration); 
-	// Operation_Count();
-	fprintf(stderr,"Count = %d times\n",Count);
+	//Operation_Count();
+	//fprintf(stderr,"Count = %d times\n",Count);
 	return 0;
 }
