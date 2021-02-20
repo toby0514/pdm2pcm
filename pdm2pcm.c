@@ -114,9 +114,9 @@ int main(int argc, char** argv)
 		/* Decode PDM. Oldest PDM bit is MSB */
 		switch(decimationF)
 		{
-			case 64 :  
-			Open_PDM_Filter_64(pdmBuf, pcmBuf, 1, &filter);
-			break;
+			// case 64 :  
+			// Open_PDM_Filter_64(pdmBuf, pcmBuf, 1, &filter);
+			// break;
 
 			case 128 :
 			Open_PDM_Filter_128(pdmBuf, pcmBuf, 1, &filter);
