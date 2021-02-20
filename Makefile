@@ -2,7 +2,7 @@ all: pdm2pcm txt2bin packdata bin2txt
 
 CFLAGS = -Wall -O3 -I.
 
-pdm2pcm: pdm2pcm.c OpenPDMFilter.c
+pdm2pcm: pdm2pcm.c pdm2pcm_float.c
 
 txt2bin: txt2bin.c
 

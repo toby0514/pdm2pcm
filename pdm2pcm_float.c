@@ -38,56 +38,104 @@
 /* Variables -----------------------------------------------------------------*/
 int AddCount=0, MulCount=0, DivCount=0,shiftCount=0;
 int ConvolveCountAdd=0,ConvolveCountMul=0,Bandpass_Filter_Init_LP_Mul=0,Bandpass_Filter_Init_LP_Add=0,Bandpass_Filter_Init_LP_Div=0,Bandpass_Filter_Init_HP_Mul=0,Bandpass_Filter_Init_HP_Add=0,Bandpass_Filter_Init_HP_Div=0,CIC_Filter_Init_Add=0,CIC_Filter_Init_Mul=0,CIC_Filter_Init_Div=0,CIC_Filter_Init_Shift=0,CIC_Filter_Add=0,Bandpass_Filter_HP_Add=0,Bandpass_Filter_HP_Mul=0,Bandpass_Filter_HP_Shift=0,Bandpass_Filter_LP_Add=0,Bandpass_Filter_LP_Mul=0,Bandpass_Filter_LP_Shift=0,Post_processing_Div=0,Post_processing_Add=0,Post_processing_Mul=0,Open_PDM_Filter_128_Add=0;
-uint32_t div_const = 0;
-int64_t sub_const = 0;
-#ifdef USE_LUT
-int32_t lut[256][DECIMATION_MAX / 8][SINCN];
-#endif
+double div_const = 0;
+int64_t sub_const = 1048576; //(sinc[0] + sinc[1] + ... + sinc[383]) / 2
 
 /* Functions -----------------------------------------------------------------*/
 
+#ifdef USE_LUT
+int32_t filter_table_mono_64(uint8_t *data, uint8_t sincn)
+{
+  return (int32_t)
+    sinc_coef[data[0]][0][sincn] +
+    sinc_coef[data[1]][1][sincn] +
+    sinc_coef[data[2]][2][sincn] +
+    sinc_coef[data[3]][3][sincn] +
+    sinc_coef[data[4]][4][sincn] +
+    sinc_coef[data[5]][5][sincn] +
+    sinc_coef[data[6]][6][sincn] +
+    sinc_coef[data[7]][7][sincn];
+}
+int32_t filter_table_stereo_64(uint8_t *data, uint8_t sincn)
+{
+  return (int32_t)
+    sinc_coef[data[0]][0][sincn] +
+    sinc_coef[data[2]][1][sincn] +
+    sinc_coef[data[4]][2][sincn] +
+    sinc_coef[data[6]][3][sincn] +
+    sinc_coef[data[8]][4][sincn] +
+    sinc_coef[data[10]][5][sincn] +
+    sinc_coef[data[12]][6][sincn] +
+    sinc_coef[data[14]][7][sincn];
+}
 int32_t filter_table_mono_128(uint8_t *data, uint8_t sincn)
 {
   return (int32_t)
-    lut[data[0]][0][sincn] +
-    lut[data[1]][1][sincn] +
-    lut[data[2]][2][sincn] +
-    lut[data[3]][3][sincn] +
-    lut[data[4]][4][sincn] +
-    lut[data[5]][5][sincn] +
-    lut[data[6]][6][sincn] +
-    lut[data[7]][7][sincn] +
-    lut[data[8]][8][sincn] +
-    lut[data[9]][9][sincn] +
-    lut[data[10]][10][sincn] +
-    lut[data[11]][11][sincn] +
-    lut[data[12]][12][sincn] +
-    lut[data[13]][13][sincn] +
-    lut[data[14]][14][sincn] +
-    lut[data[15]][15][sincn];
+    sinc_coef[data[0]][0][sincn] +
+    sinc_coef[data[1]][1][sincn] +
+    sinc_coef[data[2]][2][sincn] +
+    sinc_coef[data[3]][3][sincn] +
+    sinc_coef[data[4]][4][sincn] +
+    sinc_coef[data[5]][5][sincn] +
+    sinc_coef[data[6]][6][sincn] +
+    sinc_coef[data[7]][7][sincn] +
+    sinc_coef[data[8]][8][sincn] +
+    sinc_coef[data[9]][9][sincn] +
+    sinc_coef[data[10]][10][sincn] +
+    sinc_coef[data[11]][11][sincn] +
+    sinc_coef[data[12]][12][sincn] +
+    sinc_coef[data[13]][13][sincn] +
+    sinc_coef[data[14]][14][sincn] +
+    sinc_coef[data[15]][15][sincn];
     AddCount += 15;
 }
 int32_t filter_table_stereo_128(uint8_t *data, uint8_t sincn)
 {
   return (int32_t)
-    lut[data[0]][0][sincn] +
-    lut[data[2]][1][sincn] +
-    lut[data[4]][2][sincn] +
-    lut[data[6]][3][sincn] +
-    lut[data[8]][4][sincn] +
-    lut[data[10]][5][sincn] +
-    lut[data[12]][6][sincn] +
-    lut[data[14]][7][sincn] +
-    lut[data[16]][8][sincn] +
-    lut[data[18]][9][sincn] +
-    lut[data[20]][10][sincn] +
-    lut[data[22]][11][sincn] +
-    lut[data[24]][12][sincn] +
-    lut[data[26]][13][sincn] +
-    lut[data[28]][14][sincn] +
-    lut[data[30]][15][sincn];
+    sinc_coef[data[0]][0][sincn] +
+    sinc_coef[data[2]][1][sincn] +
+    sinc_coef[data[4]][2][sincn] +
+    sinc_coef[data[6]][3][sincn] +
+    sinc_coef[data[8]][4][sincn] +
+    sinc_coef[data[10]][5][sincn] +
+    sinc_coef[data[12]][6][sincn] +
+    sinc_coef[data[14]][7][sincn] +
+    sinc_coef[data[16]][8][sincn] +
+    sinc_coef[data[18]][9][sincn] +
+    sinc_coef[data[20]][10][sincn] +
+    sinc_coef[data[22]][11][sincn] +
+    sinc_coef[data[24]][12][sincn] +
+    sinc_coef[data[26]][13][sincn] +
+    sinc_coef[data[28]][14][sincn] +
+    sinc_coef[data[30]][15][sincn];
 }
+int32_t (* filter_tables_64[2]) (uint8_t *data, uint8_t sincn) = {filter_table_mono_64, filter_table_stereo_64};
 int32_t (* filter_tables_128[2]) (uint8_t *data, uint8_t sincn) = {filter_table_mono_128, filter_table_stereo_128};
+#else
+int32_t filter_table(uint8_t *data, uint8_t sincn, TPDMFilter_InitStruct *param)
+{
+  uint8_t c, i;
+  uint16_t data_index = 0;
+  uint32_t *coef_p = &coef[sincn][0];
+  int32_t F = 0;
+  uint8_t decimation = param->Decimation;
+  uint8_t channels = param->In_MicChannels;
+
+  for (i = 0; i < decimation; i += 8) {
+    c = data[data_index];
+    F += ((c >> 7)       ) * coef_p[i    ] +
+         ((c >> 6) & 0x01) * coef_p[i + 1] +
+         ((c >> 5) & 0x01) * coef_p[i + 2] +
+         ((c >> 4) & 0x01) * coef_p[i + 3] +
+         ((c >> 3) & 0x01) * coef_p[i + 4] +
+         ((c >> 2) & 0x01) * coef_p[i + 5] +
+         ((c >> 1) & 0x01) * coef_p[i + 6] +
+         ((c     ) & 0x01) * coef_p[i + 7];
+    data_index += channels;
+  }
+  return F;
+}
+#endif
 
 //init
 void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
@@ -105,17 +153,49 @@ void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 
 void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
 {  
-  uint16_t i, j;
-  int64_t sum = 0;
+  uint16_t i;
+  //int64_t sum = 2097152;
   uint8_t decimation = Param->Decimation;
+  //int a,b,c,j,k,l;
 
-  sub_const = sum >> 1;
+  for (i = 0; i < SINCN; i++) {
+    Param->Coef[i] = 0;
+    Param->bit[i] = 0;
+  }
+
+  /*for (a= 0; a < 256 ; a++)
+  {
+    for (b = 0;  b < decimation / 8 ; b++)
+    {
+      for (c = 0; c < SINCN ; c++)
+      {
+        sinc_coef[a][b][c] = sinc_coef_value[a*16*3 + b*3 + c];
+        fprintf(stderr,"sinc_coef[%d][%d][%d] = %d\n",a,b,c,sinc_coef[a][b][c]);
+      }
+    }
+  }
+  */
+  /*for (c= 0; c < SINCN ; c++)
+  {
+    for (a= 0; a < 256 ; a++)
+    {
+      for (b = 0;  b < decimation / 8 ; b++)
+      {
+        sinc_coef[a][b][c] = sinc_coef_value[a*16*3 + b*3 + c];
+        fprintf(stderr,"sinc_coef[%d][%d][%d] = %d\n",a,b,c,sinc_coef[a][b][c]);
+      }
+    }
+  }*/
+
+  Param->FilterLen = decimation * SINCN;    
+
+  // div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
+  div_const =  (double)(32768 * FILTER_GAIN) / (sub_const * Param->MaxVolume);  //改倒數
+  // div_const = (div_const == 0 ? 1 : div_const);
   CIC_Filter_Init_Shift += 1;
-  div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
-  fprintf(stderr,"%ld * %d / 32768 / %d = %d\n",sub_const,Param->MaxVolume,FILTER_GAIN,div_const);
-  CIC_Filter_Init_Div += 2;
-  CIC_Filter_Init_Mul += 1;
-  div_const = (div_const == 0 ? 1 : div_const);
+  CIC_Filter_Init_Div += 1;
+  CIC_Filter_Init_Mul += 2;
+
 }
 
 void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
@@ -123,6 +203,55 @@ void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
   Bandpass_Filter_Init(Param);
   CIC_Filter_Init(Param);
 }
+
+void Open_PDM_Filter_64(uint8_t* data, int16_t* dataOut, uint16_t volume, TPDMFilter_InitStruct *Param)
+{
+  uint8_t i, data_out_index;
+  uint8_t channels = Param->In_MicChannels;
+  uint8_t data_inc = ((DECIMATION_MAX >> 4) * channels); 
+  int64_t Z, Z0, Z1, Z2; 
+  int64_t OldOut, OldIn, OldZ;
+
+  OldOut = Param->OldOut;
+  OldIn = Param->OldIn;
+  OldZ = Param->OldZ;
+
+#ifdef USE_LUT
+  uint8_t j = channels - 1;
+#endif
+
+  for (i = 0, data_out_index = 0; i < Param->nSamples; i++, data_out_index += channels) {
+#ifdef USE_LUT
+    Z0 = filter_tables_64[j](data, 0);
+    Z1 = filter_tables_64[j](data, 1);
+    Z2 = filter_tables_64[j](data, 2);
+#else
+    Z0 = filter_table(data, 0, Param);
+    Z1 = filter_table(data, 1, Param);
+    Z2 = filter_table(data, 2, Param);
+#endif
+
+    Z = Param->Coef[1] + Z2 - sub_const;
+    Param->Coef[1] = Param->Coef[0] + Z1;
+    Param->Coef[0] = Z0;
+
+    OldOut = (Param->HP_ALFA * (OldOut + Z - OldIn)) >> 8;
+    OldIn = Z;
+    OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8;
+	
+    Z = OldZ * volume;
+    Z = RoundDiv(Z, div_const);
+    Z = SaturaLH(Z, -32700, 32700);
+
+    dataOut[data_out_index] = Z;
+    data += data_inc;
+  }
+
+  Param->OldOut = OldOut;
+  Param->OldIn = OldIn;
+  Param->OldZ = OldZ;
+}
+
 
 int CIC_Filter(uint8_t* data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j)
 {
