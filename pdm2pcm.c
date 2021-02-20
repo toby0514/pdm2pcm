@@ -22,10 +22,18 @@ int main(int argc, char** argv)
 	int Count=0;
 	int opt, ret, dataCount; // operation, readtxt's data
 	int finished = 0;
+<<<<<<< HEAD
 	unsigned int pdmSamplingF, decimationF, pcmSamplingF, pdmBufLen, pcmBufLen; // pdm取樣頻率, Decimation(抽取率), pcm取樣頻率, pdmBuf大小(bit),  pcmBuf大小(bit)
 	uint8_t* pdmBuf; // pdmBuf(byte)
 	int16_t* pcmBuf; // pcmBuf(-32768 ~ 32767)
 	TPDMFilter_InitStruct filter; // Open_PDM_filter 結構(可看.h file)
+=======
+	unsigned int pdmSamplingF, decimationF, pcmSamplingF, pdmBufLen, pcmBufLen;
+	uint8_t* pdmBuf;
+	int16_t* pcmBuf;
+	TPDMFilter_InitStruct filter;
+// fprintf(stderr,"pid: %d\n", getpid());
+>>>>>>> div_constant
 	/* Get user options */
 	pdmSamplingF = decimationF = 0;
 	while((opt = getopt (argc, argv, "hf:d:")) != -1){
@@ -82,7 +90,12 @@ int main(int argc, char** argv)
 	}
 	
 	/* Initialize Open PDM library */
+<<<<<<< HEAD
 	filter.Fs = pcmSamplingF; 
+=======
+	filter.MaxVolume = 1;
+	filter.Fs = pcmSamplingF;
+>>>>>>> div_constant
 	filter.nSamples = pcmBufLen;
 	filter.LP_HZ = pcmSamplingF/2;
 	filter.HP_HZ = 10;

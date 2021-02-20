@@ -57,7 +57,7 @@
 
 #define HTONS(A) ((((uint16_t)(A) & 0xff00) >> 8) | \
                  (((uint16_t)(A) & 0x00ff) << 8))
-#define RoundDiv(a, b)    (((a)>0)?(((a)+(b)/2)/(b)):(((a)-(b)/2)/(b)))
+#define RoundDiv(a, b)    (( (a)>0 ) ? ( ( (a) + (b)*2 ) * (b) ) : ( ( (a) - (b)*2 ) * (b) ))
 #define SaturaLH(N, L, H) (((N)<(L))?(L):(((N)>(H))?(H):(N)))
 
 
