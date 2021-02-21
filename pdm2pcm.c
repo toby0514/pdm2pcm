@@ -85,12 +85,14 @@ int main(int argc, char** argv)
 	/* Initialize Open PDM library */
 	filter.Fs = pcmSamplingF; 
 	filter.nSamples = pcmBufLen;
-	filter.LP_HZ = pcmSamplingF/2;
-	filter.HP_HZ = 10;
+	// filter.LP_HZ = pcmSamplingF/2;	//拿來算LP_ALFA	但哈扣了所以不需要
+	// filter.HP_HZ = 10;	//拿來算HP_ALFA	但哈扣了所以不需要
 	filter.In_MicChannels = 1; 
 	filter.Out_MicChannels = 1;
 	filter.Decimation = decimationF;
 	filter.MaxVolume = 5;
+	filter.LP_ALFA = 194;	//(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
+	filter.HP_ALFA = 254;	//(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
 	Open_PDM_Filter_Init(&filter);
 
 	/* Operation */
@@ -135,7 +137,7 @@ int main(int argc, char** argv)
 			dataCount += ret;
 		}
 	}
-	//Operation_Count();
+	// Operation_Count();
 	//fprintf(stderr,"Count = %d times\n",Count);
 	return 0;
 }

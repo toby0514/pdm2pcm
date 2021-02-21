@@ -1,3 +1,7 @@
+//琮閔
+// ^
+// |
+//莓機機
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -20,6 +24,7 @@ double div_const = 0;
 
 int32_t filter_table_mono_128(uint8_t *data, uint8_t sincn)
 {
+  CIC_Filter_Add += 15;
   return (int32_t)
          sinc_coef[data[0]][0][sincn] +
          sinc_coef[data[1]][1][sincn] +
@@ -37,7 +42,6 @@ int32_t filter_table_mono_128(uint8_t *data, uint8_t sincn)
          sinc_coef[data[13]][13][sincn] +
          sinc_coef[data[14]][14][sincn] +
          sinc_coef[data[15]][15][sincn];
-  AddCount += 15;
 }
 
 int32_t filter_table_stereo_128(uint8_t *data, uint8_t sincn)
@@ -66,12 +70,15 @@ int32_t (*filter_tables_128[2])(uint8_t *data, uint8_t sincn) = {filter_table_mo
 //init
 void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 {
-  Param->OldOut = Param->OldIn = Param->OldZ = 0;
-  Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI))) : 0); // LPF濾波係數
+  // Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI))) : 0); // LPF濾波係數
+  Param->LP_ALFA = 194;  //(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
+  fprintf(stderr, "Param->LP_ALFA = %d \n", Param->LP_ALFA);
   Bandpass_Filter_Init_LP_Mul += 2;
   Bandpass_Filter_Init_LP_Add += 1;
   Bandpass_Filter_Init_LP_Div += 2;
-  Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
+  // Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
+  Param->HP_ALFA = 254;  //(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
+  fprintf(stderr, "Param->HP_ALFA = %d \n", Param->HP_ALFA);
   Bandpass_Filter_Init_HP_Mul += 3;
   Bandpass_Filter_Init_HP_Add += 1;
   Bandpass_Filter_Init_HP_Div += 1;
@@ -81,6 +88,8 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
 {
   uint16_t i;
   // uint8_t decimation = Param->Decimation;
+
+  Param->OldOut = Param->OldIn = Param->OldZ = 0;
 
   for (i = 0; i < SINCN; i++)
   {
@@ -92,14 +101,14 @@ void CIC_Filter_Init(TPDMFilter_InitStruct *Param)
   // div_const = sub_const * Param->MaxVolume / 32768 / FILTER_GAIN;
   div_const = (double)(32768 * FILTER_GAIN) / (sub_const * Param->MaxVolume); //改倒數
   div_const = (div_const == 0 ? 1 : div_const);
-  CIC_Filter_Init_Shift += 1;
+  // CIC_Filter_Init_Shift += 1;
   CIC_Filter_Init_Div += 1;
   CIC_Filter_Init_Mul += 2;
 }
 
 void Open_PDM_Filter_Init(TPDMFilter_InitStruct *Param)
 {
-  Bandpass_Filter_Init(Param);
+  // Bandpass_Filter_Init(Param);
   CIC_Filter_Init(Param);
 }
 
