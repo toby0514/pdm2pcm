@@ -91,8 +91,10 @@ int main(int argc, char** argv)
 	filter.Out_MicChannels = 1;
 	filter.Decimation = decimationF;
 	filter.MaxVolume = 5;
-	filter.LP_ALFA = 194;	//(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
-	filter.HP_ALFA = 254;	//(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
+	// filter.LP_ALFA = 194;	//(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
+	filter.LP_ALFA = 0.758547;
+	// filter.HP_ALFA = 254;	//(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
+	filter.HP_ALFA = 0.996088;
 	Open_PDM_Filter_Init(&filter);
 
 	/* Operation */

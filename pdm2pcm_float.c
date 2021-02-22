@@ -71,14 +71,17 @@ int32_t (*filter_tables_128[2])(uint8_t *data, uint8_t sincn) = {filter_table_mo
 void Bandpass_Filter_Init(TPDMFilter_InitStruct *Param)
 {
   // Param->LP_ALFA = (Param->LP_HZ != 0 ? (uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI))) : 0); // LPF濾波係數
-  Param->LP_ALFA = 194;  //(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
-  fprintf(stderr, "Param->LP_ALFA = %d \n", Param->LP_ALFA);
+  Param->LP_ALFA = (Param->LP_HZ != 0 ? ((float)Param->LP_HZ / (Param->LP_HZ + Param->Fs / (2 * PI))) : 0); // LPF濾波係數
+  // Param->LP_ALFA = 194;  //(uint16_t)(Param->LP_HZ * 256 / (Param->LP_HZ + Param->Fs / (2 * PI)))
+  fprintf(stderr, "Param->LP_ALFA = %f \n", Param->LP_ALFA);
+  fprintf(stderr, "Param->HP_ALFA = %f \n", Param->HP_ALFA);
   Bandpass_Filter_Init_LP_Mul += 2;
   Bandpass_Filter_Init_LP_Add += 1;
   Bandpass_Filter_Init_LP_Div += 2;
   // Param->HP_ALFA = (Param->HP_HZ != 0 ? (uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
-  Param->HP_ALFA = 254;  //(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
-  fprintf(stderr, "Param->HP_ALFA = %d \n", Param->HP_ALFA);
+  Param->HP_ALFA = (Param->HP_HZ != 0 ? ((float)Param->Fs / (2 * PI * Param->HP_HZ + Param->Fs)) : 0); // HPF濾波係數
+  // Param->HP_ALFA = 254;  //(uint16_t)(Param->Fs * 256 / (2 * PI * Param->HP_HZ + Param->Fs))
+  fprintf(stderr, "Param->HP_ALFA = %f \n", Param->HP_ALFA);
   Bandpass_Filter_Init_HP_Mul += 3;
   Bandpass_Filter_Init_HP_Add += 1;
   Bandpass_Filter_Init_HP_Div += 1;
@@ -131,15 +134,17 @@ int CIC_Filter(uint8_t *data, TPDMFilter_InitStruct *Param, int64_t Z, uint8_t j
 
 int Bandpass_Filter(TPDMFilter_InitStruct *Param, int64_t Zin, int64_t OldZ, int64_t OldIn, int64_t OldOut)
 {
-  OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8; // 一階RC LPF模型
+  // OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)) >> 8; // 一階RC LPF模型
+  OldOut = (Param->HP_ALFA * (OldOut + Zin - OldIn)); // 一階RC LPF模型
   Bandpass_Filter_HP_Add += 2;
   Bandpass_Filter_HP_Mul += 1;
-  Bandpass_Filter_HP_Shift += 1;
+  // Bandpass_Filter_HP_Shift += 1;
   OldIn = Zin;
-  OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8; // 一階RC HPF模型
-  Bandpass_Filter_LP_Add += 1;
+  // OldZ = ((256 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut) >> 8; // 一階RC HPF模型
+  OldZ = ((1 - Param->LP_ALFA) * OldZ + Param->LP_ALFA * OldOut); // 一階RC HPF模型
+  Bandpass_Filter_LP_Add += 2;
   Bandpass_Filter_LP_Mul += 2;
-  Bandpass_Filter_LP_Shift += 1;
+  // Bandpass_Filter_LP_Shift += 1;
   return OldZ;
 }
 
@@ -154,7 +159,8 @@ int Post_processing(int64_t Zin, int64_t New_OldZ, uint16_t volume)
   Post_processing_Add += 1;
   Post_processing_Mul += 2;
   Zin = SaturaLH(Zin, -32700, 32700);
-  //fprintf(stderr,"%ld\n",Zin);
+  // fprintf(stderr,"%lf\n",(double)Zin);
+  // fprintf(stderr,"%ld\n",Zin);
   return Zin;
 }
 
@@ -178,7 +184,6 @@ void Open_PDM_Filter_128(uint8_t *data, int16_t *dataOut, uint16_t volume, TPDMF
     Zin = CIC_Filter(data, Param, Z, j);
     New_OldZ = Bandpass_Filter(Param, Zin, OldZ, OldIn, OldOut);
     dataOut[data_out_index] = Post_processing(Zin, New_OldZ, volume);
-
     data += data_inc;
     Open_PDM_Filter_128_Add += 1;
   }

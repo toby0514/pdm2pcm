@@ -57,7 +57,7 @@
 
 #define HTONS(A) ((((uint16_t)(A) & 0xff00) >> 8) | \
                  (((uint16_t)(A) & 0x00ff) << 8))
-#define RoundDiv(a, b)    (( (a)>0 ) ? ( ( (a) + (b)*2 ) * (b) ) : ( ( (a) - (b)*2 ) * (b) ))
+#define RoundDiv(a, b)    (( (a)>0 ) ? ( ( (a) + (b)*2 ) * (b) ) : ( ( (a) - (b)*2 ) * (b) )) //整數除法並四捨五入
 #define SaturaLH(N, L, H) (((N)<(L))?(L):(((N)>(H))?(H):(N)))
 
 
@@ -77,8 +77,8 @@ typedef struct {
   uint32_t Coef[SINCN];
   uint16_t FilterLen;
   int64_t OldOut, OldIn, OldZ;
-  uint16_t LP_ALFA;
-  uint16_t HP_ALFA;
+  float LP_ALFA;
+  float HP_ALFA;
   uint16_t bit[5];
   uint16_t byte;
 } TPDMFilter_InitStruct;
